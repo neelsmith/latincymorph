@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "latincymorph"
+version = "0.1.0"
+description = "Analyze Latin text with LatinCy/spaCy and convert its per-token morphology into tabulaedspy MorphologicalForm objects."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "Neel Smith" }]
+dependencies = [
+    "spacy>=3.7",
+]
+
+[project.optional-dependencies]
+# Stage 3 (latincymorph.tabulaedspy_bridge) needs tabulaedspy itself, which
+# transitively pulls in dspy and arsgrammatica (see tabulaedspy's own
+# pyproject.toml). Stages 1-2 (pipeline.py, extraction.py) work without
+# this extra.
+tabulaedspy = [
+    "tabulaedspy @ git+https://github.com/neelsmith/tabulaedspy",
+]
+dev = [
+    "pytest>=8.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["latincymorph*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Makes "import latincymorph" work when running plain `pytest` from the
+# repo root without needing an installed package -- same convention as
+# tabulaedspy's own pytest config.
+pythonpath = ["."]
