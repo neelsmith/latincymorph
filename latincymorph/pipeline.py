@@ -4,7 +4,14 @@ run it over Latin text.
 LatinCy models (``la_core_web_sm``/``md``/``lg``/``trf``) are published as
 pip-installable wheels on Hugging Face rather than on PyPI, e.g.::
 
-    pip install "la-core-web-lg @ https://huggingface.co/latincy/la_core_web_lg/resolve/main/la_core_web_lg-any-py3-none-any.whl"
+    pip install "la-core-web-lg @ https://huggingface.co/latincy/la_core_web_lg/resolve/main/la_core_web_lg-3.9.6-py3-none-any.whl"
+
+The wheel filename embeds an exact version (``3.9.6`` as of this writing)
+and pip requires that exact filename -- a placeholder like ``-any-`` in
+place of the version is not a valid version string and pip will refuse it
+before even making a request. Check
+https://huggingface.co/latincy/la_core_web_lg/tree/main for the current
+filename if this one 404s or pip complains about the version.
 
 Installing that wheel registers the model as an importable package, so
 ``spacy.load(name)`` finds it exactly the way a ``python -m spacy download``
