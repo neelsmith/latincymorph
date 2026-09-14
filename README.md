@@ -1,2 +1,3 @@
-# latincymorph
-Extract Latin syntax data from latency's spaCy data
+# `latincymorph`
+
+A Python library to extract Latin syntax data from latincy's spaCy data.
