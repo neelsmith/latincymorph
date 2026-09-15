@@ -166,6 +166,47 @@ def test_aux_with_verbform_inf_is_still_infinitive_not_finite_verb():
     assert form.analytic_type == "infinitive"
 
 
+# stringmappings.qmd's "Voice" section: "If token.pos_ is AUX, voice is
+# active." The copula's own tagger sometimes marks an AUX token Voice=Pass
+# when it takes part in a passive periphrastic construction (e.g. "est" in
+# "amandus est"), even though the copula itself is always grammatically
+# active -- so an AUX token's own Voice feature (if any) is never
+# consulted, across all three voice-bearing analytic types.
+
+
+def test_aux_voice_is_always_active_even_when_tagged_passive():
+    form = build_morphological_form(
+        tm("est", "AUX", {"VerbForm": "Fin", "Tense": "Pres", "Mood": "Ind", "Voice": "Pass", "Person": "3", "Number": "Sing"})
+    )
+    assert form.analytic_type == "finite verb"
+    assert form.voice == "active"
+
+
+def test_aux_voice_is_active_without_any_voice_feature():
+    # Must not raise UnmappableTokenError for a missing Voice -- an AUX
+    # token's voice is always "active" regardless of whether it's tagged
+    # at all.
+    form = build_morphological_form(
+        tm("est", "AUX", {"VerbForm": "Fin", "Tense": "Pres", "Mood": "Ind", "Person": "3", "Number": "Sing"})
+    )
+    assert form.voice == "active"
+
+
+def test_aux_infinitive_voice_is_always_active_even_when_tagged_passive():
+    form = build_morphological_form(tm("esse", "AUX", {"VerbForm": "Inf", "Aspect": "Imp", "Voice": "Pass"}))
+    assert form.analytic_type == "infinitive"
+    assert form.voice == "active"
+
+
+def test_non_aux_verb_voice_still_uses_its_own_voice_feature():
+    # Regression check: the AUX special case must not affect ordinary
+    # VERB tokens, which still need a real Voice feature.
+    with pytest.raises(UnmappableTokenError, match="Voice"):
+        build_morphological_form(
+            tm("x", "VERB", {"VerbForm": "Fin", "Tense": "Pres", "Mood": "Ind", "Person": "3", "Number": "Sing"})
+        )
+
+
 # Infinitive tense is determined by Aspect alone (not Tense) -- same
 # pattern as participles (see above). stringmappings.qmd's "Tense" table
 # now has "for infinitives, Aspect=Imp -> present" and "for infinitives,
@@ -325,9 +366,9 @@ def test_supine():
 
 
 # ---------------------------------------------------------------------------
-# Uninflected: real tabulaedspy forms for the seven UPOS values
-# stringmappings.qmd's table covers; UnclassifiedUninflected for anything
-# else (the catch-all).
+# Uninflected: real tabulaedspy forms for the UPOS values
+# stringmappings.qmd's table covers (CCONJ and SCONJ both -> conjunction);
+# UnclassifiedUninflected for anything else (the catch-all).
 # ---------------------------------------------------------------------------
 
 
@@ -335,6 +376,7 @@ def test_supine():
     "upos,expected_type",
     [
         ("CCONJ", "conjunction"),
+        ("SCONJ", "conjunction"),
         ("ADP", "preposition"),
         ("NUM", "number"),
         ("INTJ", "interjection"),
@@ -347,13 +389,16 @@ def test_uninflected_types_from_stringmappings_table(upos, expected_type):
     assert form == MorphologicalForm(analytic_type="uninflected", uninflected_type=expected_type)
 
 
-@pytest.mark.parametrize("upos", ["SCONJ", "SYM"])
+@pytest.mark.parametrize("upos", ["SYM"])
 def test_unlisted_upos_falls_back_to_unclassified_uninflected(upos):
-    # SCONJ and SYM aren't in stringmappings.qmd's uninflected_type table
-    # (only CCONJ is listed for conjunctions). AUX used to land here too
-    # when it had no recognized VerbForm, but stringmappings.qmd now maps
-    # bare AUX to finite verb instead (see test_aux_without_verbform_falls_back_to_finite_verb
-    # and test_aux_without_recognized_verbform_and_missing_properties_raises).
+    # SYM isn't in stringmappings.qmd's uninflected_type table at all
+    # (only X comes close, with its own caveat about being a mixed bag).
+    # SCONJ used to land here too, before Neel added it alongside CCONJ
+    # (see test_uninflected_types_from_stringmappings_table above). AUX
+    # used to land here as well when it had no recognized VerbForm, but
+    # stringmappings.qmd now maps bare AUX to finite verb instead (see
+    # test_aux_without_verbform_falls_back_to_finite_verb and
+    # test_aux_without_recognized_verbform_and_missing_properties_raises).
     result = build_morphological_form(tm("x", upos, {}))
     assert isinstance(result, UnclassifiedUninflected)
     assert result.upos == upos
@@ -369,7 +414,9 @@ def test_aux_without_recognized_verbform_and_missing_properties_raises():
 
 
 def test_unclassified_uninflected_keeps_raw_feats():
-    result = build_morphological_form(tm("quamquam", "SCONJ", {"Foo": "Bar"}))
+    # SCONJ used to be a catch-all example here too, before Neel added it
+    # alongside CCONJ -- SYM is still genuinely unmapped.
+    result = build_morphological_form(tm("%", "SYM", {"Foo": "Bar"}))
     assert result.feats == {"Foo": "Bar"}
 
 
@@ -432,7 +479,7 @@ def test_native_is_true_only_for_genuine_tabulaedspy_forms():
         [
             tm("caelum", "NOUN", {"Case": "Acc", "Gender": "Neut", "Number": "Sing"}),  # native
             tm("bonus", "ADJ", {"Case": "Nom", "Gender": "Masc", "Number": "Sing"}),  # AbbreviatedAdjective
-            tm("quamquam", "SCONJ", {}),  # UnclassifiedUninflected
+            tm("%", "SYM", {}),  # UnclassifiedUninflected
             tm("Romae", "NOUN", {"Case": "Loc", "Gender": "Fem", "Number": "Sing"}),  # error
         ]
     )

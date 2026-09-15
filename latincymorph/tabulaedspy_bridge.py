@@ -98,6 +98,7 @@ _PERSON = {"1": "first", "2": "second", "3": "third"}
 # directly (see the module docstring).
 _UNINFLECTED_TYPE_BY_UPOS = {
     "CCONJ": "conjunction",
+    "SCONJ": "conjunction",
     "ADP": "preposition",
     "ADV": "adverb",
     "NUM": "number",
@@ -146,7 +147,7 @@ class AbbreviatedAdjective(BaseModel):
 class UnclassifiedUninflected(BaseModel):
     """A token that isn't one of the analytic types this module can
     confidently identify (noun/pronoun/adjective/a verb-family type), and
-    whose UPOS also isn't one of the seven values
+    whose UPOS also isn't one of the values
     ``quarto/reference/stringmappings.qmd``'s "Uninflected type" table
     covers. Carries the token's own UPOS and raw UD features rather than
     guessing a specific tabulaedspy `uninflected_type` the reference
@@ -325,6 +326,23 @@ def _nominal_properties(token: TokenMorphology) -> dict:
     }
 
 
+def _voice(token: TokenMorphology) -> str:
+    """Voice -- stringmappings.qmd's own "Voice" note: *"If token.pos_ is
+    AUX, voice is active."* The copula's own tagger sometimes attaches
+    `Voice=Pass` to an AUX token that's part of a passive periphrastic
+    construction (e.g. `est` in `amandus est`), even though the copula
+    itself is always grammatically active -- so an AUX token's voice is
+    `active` unconditionally, and its own `Voice` feature (if it has one
+    at all) is never consulted. Any other token's `Voice` feature is
+    looked up normally via `_VOICE` (`Act` -> `active`, `Pass` ->
+    `passive`). Used for all three voice-bearing analytic types (finite
+    verb, infinitive, participle) in :func:`_build_verb_family`.
+    """
+    if token.upos == "AUX":
+        return "active"
+    return _lookup(_VOICE, token.feats.get("Voice"), token, "Voice")
+
+
 def _build_verb_family(token: TokenMorphology, verb_form: str) -> MorphologicalForm:
     analytic_type = _ANALYTIC_TYPE_BY_VERB_FORM[verb_form]
 
@@ -332,16 +350,16 @@ def _build_verb_family(token: TokenMorphology, verb_form: str) -> MorphologicalF
         kwargs = {
             "tense": _tense(token),
             "mood": _lookup(_MOOD, token.feats.get("Mood"), token, "Mood"),
-            "voice": _lookup(_VOICE, token.feats.get("Voice"), token, "Voice"),
+            "voice": _voice(token),
             "person": _lookup(_PERSON, token.feats.get("Person"), token, "Person"),
             "number": _lookup(_NUMBER, token.feats.get("Number"), token, "Number"),
         }
     elif analytic_type == "infinitive":
-        kwargs = {"tense": _infinitive_tense(token), "voice": _lookup(_VOICE, token.feats.get("Voice"), token, "Voice")}
+        kwargs = {"tense": _infinitive_tense(token), "voice": _voice(token)}
     elif analytic_type == "participle":
         kwargs = {
             "tense": _participle_tense(token),
-            "voice": _lookup(_VOICE, token.feats.get("Voice"), token, "Voice"),
+            "voice": _voice(token),
             **_nominal_properties(token),
         }
     elif analytic_type == "supine":
@@ -434,13 +452,14 @@ def build_morphological_form(token: TokenMorphology) -> StageThreeResult:
        :class:`AbbreviatedAdjective`).
     7. Anything else -> :func:`_build_uninflected_or_unknown`: a genuine
        `uninflected` `MorphologicalForm` if ``token.pos_`` is one of the
-       seven UPOS values stringmappings.qmd's "Uninflected type" table
-       covers, otherwise :class:`UnclassifiedUninflected`. **Note:** this
-       is where `SCONJ` and `SYM` currently land, since neither appears
-       in that table (only `CCONJ` is listed for conjunctions) -- `SCONJ`
-       in particular is common in Latin (*cum*, *ut*, *si*, *quod*...) and
-       is likely an oversight worth adding to stringmappings.qmd rather
-       than a deliberate exclusion.
+       UPOS values stringmappings.qmd's "Uninflected type" table covers
+       (`CCONJ` and `SCONJ` both -> `conjunction`, plus `ADP`, `ADV`,
+       `NUM`, `INTJ`, `PART`, `X`), otherwise
+       :class:`UnclassifiedUninflected`. **Note:** `SYM` is where the
+       catch-all currently lands most notably, since it isn't in that
+       table at all (only `X` comes close, with its own caveat about
+       being a mixed bag); `SCONJ` used to land here too, before Neel
+       added it alongside `CCONJ`.
 
     Raises :class:`UnmappableTokenError` only once an analytic type *is*
     already determined but a property it specifically requires is missing,

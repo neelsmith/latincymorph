@@ -146,7 +146,7 @@ spaCy `token.morph` is empty.
 
 | spaCy `token.pos_` is |  value |
 | --- | --- | 
-| `CCONJ` | `conjunction` |
+| `CCONJ` or `SCONJ`| `conjunction` |
 | `ADP` | `preposition` |
 | `ADV`| `adverb` |
 | `NUM` | `number` |
@@ -155,3 +155,5 @@ spaCy `token.morph` is empty.
 | `X` but see following | `foreign` |
 
 spaCy `token.pos_` value  `X` generically marks unintelligible tokens so encompasses `foreign` but also could include errors.
+
+Also note: the value `SYM` for `token.pos` is not (yet?) mapped onto `tabulaedspy` values.

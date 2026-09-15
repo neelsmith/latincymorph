@@ -44,10 +44,11 @@ The two cases are handled differently, because they aren't symmetric:
 
 ## The `uninflected` catch-all
 
-`stringmappings.qmd`'s "Uninflected type" table covers exactly seven UPOS
-values: `CCONJ`, `ADP`, `ADV`, `NUM`, `INTJ`, `PART`, `X`. Any analyzable
-token that isn't a noun/pronoun/adjective/verb-family type *and* whose
-UPOS isn't in that list becomes `UnclassifiedUninflected` -- a second
+`stringmappings.qmd`'s "Uninflected type" table covers eight UPOS values
+(`CCONJ` and `SCONJ` both -> `conjunction`, plus `ADP`, `ADV`, `NUM`,
+`INTJ`, `PART`, `X`). Any analyzable token that isn't a
+noun/pronoun/adjective/verb-family type *and* whose UPOS isn't in that
+list becomes `UnclassifiedUninflected` -- a second
 local companion type carrying the token's raw `upos` and `feats` rather
 than guessing a specific `uninflected_type` the reference document doesn't
 support, or raising an error and dropping the token. `MorphologicalFormResult.native`
@@ -56,12 +57,6 @@ always tell a genuine tabulaedspy object from a fallback.
 
 In practice, this catch-all currently fires for:
 
-- **`SCONJ`** -- not in the table (only `CCONJ` is listed). Latin
-  subordinating conjunctions (*cum*, *ut*, *si*, *quod*...) are common, so
-  every one of them currently lands here rather than as
-  `uninflected`/`conjunction`. This looks like an oversight in
-  `stringmappings.qmd` rather than an intentional exclusion -- worth
-  adding `SCONJ` alongside `CCONJ` there if so.
 - **`SYM`** -- not in the table at all (only `X` is, with its own caveat
   about being a mixed bag).
 - **`DET`, `PRON`, `NOUN`, `PROPN`, `ADJ`, `VERB`** *tokens whose
@@ -71,6 +66,24 @@ In practice, this catch-all currently fires for:
   verb`" below; a bare `AUX` with no recognized `VerbForm` now falls back
   to `finite verb` instead (and raises `UnmappableTokenError`, not this
   catch-all, if it's missing the properties a finite verb needs).
+
+**`SCONJ` no longer lands here either.** It used to -- `stringmappings.qmd`'s
+uninflected-type table originally listed only `CCONJ` for conjunctions,
+so every Latin subordinating conjunction (*cum*, *ut*, *si*, *quod*...)
+fell through to `UnclassifiedUninflected` even though they're extremely
+common in ordinary prose. This page previously flagged that as a likely
+oversight worth fixing in `stringmappings.qmd` -- Neel has since added
+`SCONJ` alongside `CCONJ` there (both -> `conjunction`), so
+`_UNINFLECTED_TYPE_BY_UPOS` now maps both, and `SCONJ` tokens get a
+genuine `MorphologicalForm(analytic_type="uninflected",
+uninflected_type="conjunction")` rather than the fallback. See
+`tests/test_tabulaedspy_bridge.py`'s
+`test_uninflected_types_from_stringmappings_table` (now covers both
+`CCONJ` and `SCONJ`); the older SCONJ-as-catch-all examples in
+`test_unlisted_upos_falls_back_to_unclassified_uninflected`,
+`test_unclassified_uninflected_keeps_raw_feats`, and
+`test_native_is_true_only_for_genuine_tabulaedspy_forms` now use `SYM`
+instead, which is still genuinely unmapped.
 
 ## `AUX -> finite verb`: a new fallback, not an override
 
@@ -209,6 +222,32 @@ mapping failure, not a third recognized value. The original `test_infinitive`
 specifically checks that `Aspect=Prosp` -- valid for a participle, not an
 infinitive -- is rejected here).
 
+## `AUX` voice is always `active`
+
+`stringmappings.qmd`'s "Voice" section now opens with: *"If `token.pos_`
+is `AUX`, voice is `active`. Otherwise: [the `Voice=Act`/`Voice=Pass`
+table]."* The copula's own tagger apparently sometimes marks an `AUX`
+token `Voice=Pass` when it takes part in a passive periphrastic
+construction (e.g. `est` in `amandus est`), even though the copula itself
+is always grammatically active -- so an `AUX` token's own `Voice` feature,
+whatever it is or isn't, must never be consulted; its voice is `active`
+unconditionally. This is the same pattern as the participle/infinitive
+tense discoveries above: a property that's determined a different way (or
+not consulted at all) for one particular `token.pos_`/analytic-type
+combination, that the rest of the mapping's generic rule would get wrong.
+
+`tabulaedspy_bridge.py` gets a small `_voice()` helper -- `"active"` for
+any `AUX` token, otherwise the ordinary `_VOICE` lookup (`Act` ->
+`active`, `Pass` -> `passive`) -- used everywhere `voice` is built:
+finite verb, infinitive, and participle, all three, since `AUX` can be
+any of those three analytic types (see the `AUX -> finite verb` section
+above) and the rule applies regardless of which one a given `AUX` token
+resolves to. See `tests/test_tabulaedspy_bridge.py`'s
+`test_aux_voice_is_always_active_even_when_tagged_passive`,
+`test_aux_voice_is_active_without_any_voice_feature`,
+`test_aux_infinitive_voice_is_always_active_even_when_tagged_passive`,
+and the regression check `test_non_aux_verb_voice_still_uses_its_own_voice_feature`.
+
 ## Morphological property values
 
 Unchanged from `stringmappings.qmd`'s own tables, direct lookups (see
@@ -222,7 +261,7 @@ Unchanged from `stringmappings.qmd`'s own tables, direct lookups (see
 | Number | Sing->singular, Plur->plural |
 | Degree | Pos->positive, Cmp->comparative, Sup->superlative (only reached when `Degree` actually is present -- see above) |
 | Mood | Ind->indicative, Sub->subjunctive, Imp->imperative |
-| Voice | Act->active, Pass->passive |
+| Voice | Act->active, Pass->passive (except `AUX` tokens, always `active` -- see "`AUX` voice is always `active`" above) |
 | Person | "1"->first, "2"->second, "3"->third |
 
 ### Known gap: locative case
@@ -233,8 +272,9 @@ nominative, genitive, dative, accusative, ablative, vocative). There is no
 principled single substitution -- Latin locative forms are historically
 syncretic with genitive, dative, or ablative depending on declension, so
 guessing one would be inventing data. A token tagged `Case=Loc` raises
-`UnmappableTokenError`. Unlike the `PROPN`/`DET`/`SCONJ` gaps above, this
-one is a genuine schema limit (tabulaedspy has no slot for it at all), not
+`UnmappableTokenError`. Unlike the `PROPN`/`DET` gaps above (and the
+former `SCONJ` gap, now fixed), this one is a genuine schema limit
+(tabulaedspy has no slot for it at all), not
 something a mapping choice can paper over -- it would need a change to
 tabulaedspy's own `morphology_scheme.md` to fix.
 
@@ -247,9 +287,9 @@ the cloud sandbox this pipeline was drafted in and the network this
 repository's own `.venv` runs on (see `pipeline-overview.md`). Once the
 real model is available, particularly worth checking:
 
-1. **How often the `uninflected` catch-all actually fires** on real text,
-   and on which UPOS values -- `SCONJ` frequency especially, since that
-   gap alone could affect a large fraction of tokens in ordinary prose.
+1. **How often the `uninflected` catch-all actually fires** on real
+   text, and on which UPOS values -- now that `SCONJ` is fixed (see
+   above), `SYM` frequency is the main remaining open question.
 2. **Whether `Degree` genuinely never appears** on `ADJ`/`ADV` tokens, or
    only sometimes -- confirms whether `AbbreviatedAdjective` is the common
    case or a rare fallback.
