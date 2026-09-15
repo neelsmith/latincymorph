@@ -29,17 +29,17 @@ Use this table to determine the morphological properties required for each analy
 
 | Analytic type | Properties |
 | ---  | --- | 
-|  "noun" | "gender", "case", "number" |
-|   "pronoun" | "gender", "case", "number" |
-| "adjective" | "gender", "case", "number", "degree " |
-| "adverb" | "degree" |
-|    "finite verb" | "tense", "mood", "voice", "person", "number " |
-| "infinitive" | "tense", "voice " |
-| "participle" | "tense", "voice", "gender", "case", "number " |
-|  "supine" | "case" |
-|    "gerund" | "case" |
-| "gerundive" | "gender", "case", "number " |
-|  "uninflected" | "uninflected_type" |
+|  `noun` | `gender`, `case`, `number` |
+|   `pronoun` | `gender`, `case`, `number` |
+| `adjective` | `gender`, `case`, `number`, `degree ` |
+| `adverb` | `degree` |
+|    `finite verb` | `tense`, `mood`, `voice`, `person`, `number ` |
+| `infinitive` | `tense`, `voice ` |
+| `participle` | `tense`, `voice`, `gender`, `case`, `number ` |
+|  `supine` | `case` |
+|    `gerund` | `case` |
+| `gerundive` | `gender`, `case`, `number ` |
+|  `uninflected` | `uninflected_type` |
 
 
 
@@ -59,32 +59,89 @@ Use these tables to determine the value for each morphological property required
 
 ### Case
 
-Case = Literal["nominative", "genitive", "dative", "accusative", "ablative", "vocative"]
+| spaCy `token.morph` includes |  value |
+| --- | --- | 
+| `Case=Nom`| `nominative` |
+| `Case=Gen` | `genitive` |
+| `Case=Dat` | `dative` |
+| `Case=Acc` | `accusative` |
+| `Case=Abl` | `ablative` |
+| `Case=Voc` | `vocative` |
+
+
 
 ### Number
-Number = Literal["singular", "plural"]
+
+| spaCy `token.morph` includes |  value |
+| --- | --- | 
+| `Number=Sing` | `singular` |
+| `Number=Plur` | `plural` |
+
+
 
 
 ### Degree
 
-Degree = Literal["positive", "comparative", "superlative"]
+latincy does not appear to tag degree of adjectives and adverbs.
+
+`tabulaedspy` requires one of these values for `Degree`: `positive`, `comparative`, `superlative`
 
 ### Tense
-Tense = Literal["present", "imperfect", "future", "perfect", "pluperfect", "future_perfect"]
+
+| spaCy `token.morph` includes |  value |
+| --- | --- | 
+| `Tense=Pres` | `present` |
+|`Aspect=Imp` and  `Tense=Past` |  `imperfect` |
+| `Aspect=Imp` and `Tense=Fut`|  `future` |
+|`Aspect=Perf` and  `Tense=Past`|  `perfect` |
+|`Tense=Pqp` | `pluperfect` |
+|`Aspect=Perf` and `Tense=Fut`| `future_perfect` |
 
 ### Mood
 
-Mood = Literal["indicative", "subjunctive", "imperative"]
+
+
+
+| spaCy `token.morph` includes |  value |
+| --- | --- | 
+| `Mood=Ind` | `indicative` |
+| `Mood=Sub` | `subjunctive` |
+| `Mood=Imp` | `imperative` |
+
+
 
 
 ### Voice
-Voice = Literal["active", "passive"]
+
+| spaCy `token.morph` includes |  value |
+| --- | --- | 
+| `Voice=Act` | `active` |
+| `Voice=Pass` | `passive` |
+
+
 
 ### Person
-Person = Literal["first", "second", "third"]
+
+| spaCy `token.morph` includes |  value |
+| --- | --- | 
+| `Person=1` | `first` |
+| `Person=2` | `second` |
+| `Person=3` | `third` |
+
+
 
 ### Uninflected type
-UninflectedType = Literal[
-    "conjunction", "preposition", "adverb", "number", "interjection", "particle", "foreign"
-]
 
+spaCy `token.morph` is empty.
+
+| spaCy `token.pos_` is |  value |
+| --- | --- | 
+| `CCONJ` | `conjunction` |
+| `ADP` | `preposition` |
+| `ADV`| `adverb` |
+| `NUM` | `number` |
+| `INTJ` | `interjection` |
+| `PART` | `particle` |
+| `X` but see following | `foreign` |
+
+spaCy `token.pos_` value  `X` generically marks unintelligible tokens so encompasses `foreign` but also could include errors.
