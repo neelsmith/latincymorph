@@ -10,8 +10,9 @@ Stage 3 (latincymorph.tabulaedspy_bridge.build_morphological_forms): map
 each token's morphology onto tabulaedspy's scheme, per
 quarto/reference/stringmappings.qmd. Most tokens come back as a genuine
 tabulaedspy.MorphologicalForm; some come back as one of latincymorph's own
-companion types (AbbreviatedAdjective, UnclassifiedUninflected) for cases
-tabulaedspy's schema can't represent from what LatinCy actually tags -- see
+companion types (AbbreviatedAdjective, UngenderedNoun, UngenderedPronoun,
+UnclassifiedUninflected) for cases tabulaedspy's schema can't represent
+from what LatinCy actually tags -- see
 latincymorph/tabulaedspy_bridge.py's module docstring.
 
 Usage:
@@ -35,6 +36,8 @@ from latincymorph import (
     AbbreviatedAdjective,
     MorphologicalFormResult,
     UnclassifiedUninflected,
+    UngenderedNoun,
+    UngenderedPronoun,
     analyze_text,
     build_morphological_forms,
     extract_sentences,
@@ -118,6 +121,19 @@ def format_result(result: MorphologicalFormResult) -> str:
             f"number={outcome.number} [degree MISSING -- LatinCy doesn't tag it]"
         )
 
+    if isinstance(outcome, UngenderedNoun):
+        return (
+            f"analytic_type=noun case={outcome.case} number={outcome.number} "
+            f"[gender MISSING -- LatinCy doesn't reliably tag gender on nouns, "
+            f"proper nouns especially]"
+        )
+
+    if isinstance(outcome, UngenderedPronoun):
+        return (
+            f"analytic_type=pronoun case={outcome.case} number={outcome.number} "
+            f"[gender MISSING -- LatinCy doesn't tag gender on personal pronouns]"
+        )
+
     if isinstance(outcome, UnclassifiedUninflected):
         return f"analytic_type=uninflected uninflected_type=unknown [UPOS {outcome.upos!r} not in stringmappings.qmd]"
 
@@ -177,7 +193,8 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"Summary: {native_count} mapped to a genuine tabulaedspy MorphologicalForm, "
         f"{fallback_count} to a latincymorph companion type (AbbreviatedAdjective / "
-        f"UnclassifiedUninflected), {error_count} unmapped, out of {total_tokens} token(s)."
+        f"UngenderedNoun / UngenderedPronoun / UnclassifiedUninflected), "
+        f"{error_count} unmapped, out of {total_tokens} token(s)."
     )
     return 0
 

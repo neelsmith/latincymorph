@@ -42,6 +42,98 @@ The two cases are handled differently, because they aren't symmetric:
   `uninflected` form already captures everything LatinCy gives us for an
   adverb.
 
+## A third gap: personal pronouns and `gender`
+
+Neel flagged this one in chat rather than in `stringmappings.qmd` itself:
+personal pronouns (*ego*, *tu*, *nos*, *vos*) never get a `Gender` value
+from LatinCy. This is a different kind of gap from `degree` above --
+`degree` is LatinCy failing to tag something that genuinely exists on
+adjectives and adverbs; `Gender` on personal pronouns doesn't exist to
+tag in the first place, since Latin personal pronouns don't inflect for
+gender at all (unlike demonstrative, relative, interrogative, and other
+pronouns/`DET` tokens, which decline by gender exactly like adjectives
+and still come through as a genuine `pronoun` `MorphologicalForm`).
+tabulaedspy's schema doesn't distinguish the two cases, though --
+`gender` is still required for every `analytic_type="pronoun"` -- so the
+fix follows the same shape as `AbbreviatedAdjective`:
+
+- A `PRON`/`DET` token with `Gender` present -> genuine
+  `MorphologicalForm(analytic_type="pronoun", ...)`, unchanged.
+- A `PRON`/`DET` token with no `Gender` -> `UngenderedPronoun`, a new
+  local companion type (`latincymorph.tabulaedspy_bridge.UngenderedPronoun`)
+  carrying only `case` and `number` -- no `gender` slot, so nothing is
+  invented. `Case` and `Number` are still required and still raise
+  `UnmappableTokenError` if missing, exactly as they would for a genuine
+  pronoun.
+
+Dispatch moved into its own `_build_pronoun()` helper (mirroring
+`_build_adjective()`) rather than staying inline in
+`build_morphological_form()`. `StageThreeResult` and
+`MorphologicalFormResult.native` both now account for the new type, and
+`utilities/analyze_text.py` and `utilities/find_unmapped_tokens.py` were
+updated to recognize it too (`analyze_text.py`'s `format_result()` would
+otherwise hit its "unhandled stage-3 outcome type" assertion the first
+time a real ungendered pronoun showed up). See
+`tests/test_tabulaedspy_bridge.py`'s `test_pronoun_without_gender_is_ungendered`,
+`test_det_without_gender_is_also_ungendered`, and
+`test_ungendered_pronoun_still_requires_case_and_number` for the coverage,
+alongside the strengthened `test_pronoun`/`test_det_maps_to_pronoun`
+(now asserting `isinstance(form, MorphologicalForm)` for the
+`Gender`-present path, same as the adjective tests already did).
+
+Unlike `SCONJ`, `PROPN`, and `DET` above, this isn't (yet) reflected in
+`stringmappings.qmd` itself -- its "Properties by type" table still lists
+`pronoun` as unconditionally requiring `gender`, `case`, `number`, with no
+note about personal pronouns the way its "Degree" section notes the
+adjective/adverb gap. Worth adding a parallel note there, the same way
+`SCONJ` was worth adding to the uninflected-type table.
+
+## A fourth gap: nouns and proper nouns without `gender`
+
+The same request as the pronoun gap above, applied to `NOUN`/`PROPN` --
+Neel again flagged this in chat rather than in `stringmappings.qmd`
+itself. Unlike personal pronouns, though, this one *is* a genuine
+tagging gap, not a fact about the language: every Latin noun, common or
+proper, really does have a grammatical gender (*Roma* is feminine,
+*Caesar* is masculine), so a missing `Gender` here means LatinCy simply
+didn't tag it -- proper nouns especially, since a name doesn't carry the
+declension-pattern cues a tagger relies on for common nouns. Closer in
+spirit to `AbbreviatedAdjective`'s `Degree` gap than to
+`UngenderedPronoun`'s genuine absence, even though the fix is the same
+shape as both:
+
+- A `NOUN`/`PROPN` token with `Gender` present -> genuine
+  `MorphologicalForm(analytic_type="noun", ...)`, unchanged.
+- A `NOUN`/`PROPN` token with no `Gender` -> `UngenderedNoun`, a new
+  local companion type (`latincymorph.tabulaedspy_bridge.UngenderedNoun`)
+  carrying only `case` and `number`. `Case` and `Number` are still
+  required and still raise `UnmappableTokenError` if missing, exactly as
+  they would for a genuine noun.
+
+Dispatch moved into its own `_build_noun()` helper (mirroring
+`_build_pronoun()`/`_build_adjective()`) rather than staying inline in
+`build_morphological_form()`. `StageThreeResult` and
+`MorphologicalFormResult.native` both now account for the new type, and
+`utilities/analyze_text.py` and `utilities/find_unmapped_tokens.py` were
+updated to recognize it too. One existing test had to change because of
+this, not just gain new ones: `test_missing_required_feature_raises` used
+to demonstrate the "missing required feature raises" failure path with a
+`NOUN` missing `Gender` -- that's no longer a failure, so it now uses a
+`NOUN` missing `Case` instead (still unconditionally required). See
+`tests/test_tabulaedspy_bridge.py`'s
+`test_propn_without_gender_is_ungendered`,
+`test_noun_without_gender_is_also_ungendered`, and
+`test_ungendered_noun_still_requires_case_and_number` for the new
+coverage, alongside the strengthened `test_noun`/`test_propn_maps_to_noun`
+(now asserting `isinstance(form, MorphologicalForm)` for the
+`Gender`-present path).
+
+Like the pronoun gap, this isn't (yet) reflected in `stringmappings.qmd`
+itself -- its "Properties by type" table still lists `noun` as
+unconditionally requiring `gender`, `case`, `number`. Two gaps in the
+same table now (`pronoun` and `noun`) might be worth a single combined
+note there rather than two separate ones.
+
 ## The `uninflected` catch-all
 
 `stringmappings.qmd`'s "Uninflected type" table covers eight UPOS values
@@ -298,6 +390,17 @@ real model is available, particularly worth checking:
    through with sparser morphology.
 4. The Tense/Aspect rules above, and the locative-case gap's real-world
    frequency.
+5. **How often `UngenderedPronoun` actually fires**, and on which lemmas
+   -- confirms whether it's limited to the personal pronouns (*ego*,
+   *tu*, *nos*, *vos*, and their oblique forms) as expected, or whether
+   some other `PRON`/`DET` lemma also comes through without `Gender`
+   (which would be worth a note in `stringmappings.qmd` either way).
+6. **How often `UngenderedNoun` actually fires**, and whether it's
+   concentrated in `PROPN` as expected or also common on plain `NOUN`
+   tokens -- since a missing `Gender` here is a real tagging failure
+   (not personal-pronoun-style genuine absence), a high rate on ordinary
+   `NOUN` tokens especially would be worth flagging as a LatinCy
+   limitation, not just documenting.
 
 Fold confirmed findings back into `tabulaedspy_bridge.py` and this
 document, and add confirmed sentences as regression fixtures in `tests/`.

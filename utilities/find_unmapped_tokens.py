@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Run a string of Latin text through the full latincymorph pipeline and
 print *only* the tokens stage 3 couldn't map at all -- the genuine
-failures (``MorphologicalFormResult.error`` set), not the two companion
-types (``AbbreviatedAdjective``, ``UnclassifiedUninflected``) that stand
-in for a real ``tabulaedspy.MorphologicalForm`` when tabulaedspy's schema
-demands something LatinCy didn't tag. Those companion-type tokens are
+failures (``MorphologicalFormResult.error`` set), not the companion types
+(``AbbreviatedAdjective``, ``UngenderedNoun``, ``UngenderedPronoun``,
+``UnclassifiedUninflected``) that stand in for a real
+``tabulaedspy.MorphologicalForm`` when tabulaedspy's schema demands
+something LatinCy didn't tag. Those companion-type tokens are
 successes, just not native ones (see ``MorphologicalFormResult.native``);
 this script is for finding the tokens that raised
 ``UnmappableTokenError`` -- a UD feature a *known* analytic type

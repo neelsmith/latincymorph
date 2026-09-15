@@ -11,10 +11,10 @@ Three stages (full design in ``notes/pipeline-overview.md``):
 3. ``tabulaedspy_bridge.build_morphological_form()`` -- map that
    morphology onto tabulaedspy's scheme and instantiate the result. Most
    tokens become a genuine ``tabulaedspy.MorphologicalForm``; some become
-   one of two local companion types (``AbbreviatedAdjective``,
-   ``UnclassifiedUninflected``) for cases tabulaedspy's schema can't
-   represent from what LatinCy actually tags -- see
-   ``tabulaedspy_bridge``'s own docstring and
+   one of this module's own companion types (``AbbreviatedAdjective``,
+   ``UngenderedNoun``, ``UngenderedPronoun``, ``UnclassifiedUninflected``)
+   for cases tabulaedspy's schema can't represent from what LatinCy
+   actually tags -- see ``tabulaedspy_bridge``'s own docstring and
    ``notes/spacy-to-tabulaedspy-mapping.md``.
 
 Stages 1-2 need only spaCy/LatinCy installed. Stage 3 additionally needs
@@ -35,6 +35,8 @@ from .tabulaedspy_bridge import (
     MorphologicalFormResult,
     StageThreeResult,
     UnclassifiedUninflected,
+    UngenderedNoun,
+    UngenderedPronoun,
     UnmappableTokenError,
     build_morphological_form,
     build_morphological_forms,
@@ -47,6 +49,8 @@ __all__ = [
     "StageThreeResult",
     "AbbreviatedAdjective",
     "UnclassifiedUninflected",
+    "UngenderedNoun",
+    "UngenderedPronoun",
     "UnmappableTokenError",
     "analyze_text",
     "load_model",

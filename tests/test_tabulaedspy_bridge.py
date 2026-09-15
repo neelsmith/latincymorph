@@ -5,6 +5,8 @@ from latincymorph.extraction import TokenMorphology
 from latincymorph.tabulaedspy_bridge import (
     AbbreviatedAdjective,
     UnclassifiedUninflected,
+    UngenderedNoun,
+    UngenderedPronoun,
     UnmappableTokenError,
     build_morphological_form,
     build_morphological_forms,
@@ -32,6 +34,7 @@ def test_noun():
         tm("caelum", "NOUN", {"Case": "Acc", "Gender": "Neut", "Number": "Sing"})
     )
     assert form == MorphologicalForm(analytic_type="noun", gender="neuter", case="accusative", number="singular")
+    assert isinstance(form, MorphologicalForm)
 
 
 def test_propn_maps_to_noun():
@@ -43,6 +46,35 @@ def test_propn_maps_to_noun():
         tm("Deus", "PROPN", {"Case": "Nom", "Gender": "Masc", "Number": "Sing"})
     )
     assert form.analytic_type == "noun"
+    assert isinstance(form, MorphologicalForm)
+
+
+# ---------------------------------------------------------------------------
+# Noun without Gender: unlike UngenderedPronoun's genuine absence, every
+# Latin noun (common or proper) really does have a gender -- this is
+# LatinCy failing to tag it, proper nouns especially, the same kind of
+# gap as AbbreviatedAdjective's Degree. UngenderedNoun carries case/number
+# only.
+# ---------------------------------------------------------------------------
+
+
+def test_propn_without_gender_is_ungendered():
+    result = build_morphological_form(tm("Deus", "PROPN", {"Case": "Nom", "Number": "Sing"}))
+    assert isinstance(result, UngenderedNoun)
+    assert result == UngenderedNoun(case="nominative", number="singular")
+    assert not hasattr(result, "gender")
+
+
+def test_noun_without_gender_is_also_ungendered():
+    # NOUN shares PROPN's dispatch, so the same fallback applies to it.
+    result = build_morphological_form(tm("caelum", "NOUN", {"Case": "Acc", "Number": "Sing"}))
+    assert isinstance(result, UngenderedNoun)
+    assert result == UngenderedNoun(case="accusative", number="singular")
+
+
+def test_ungendered_noun_still_requires_case_and_number():
+    with pytest.raises(UnmappableTokenError, match="Number"):
+        build_morphological_form(tm("Deus", "PROPN", {"Case": "Nom"}))
 
 
 def test_pronoun():
@@ -50,6 +82,7 @@ def test_pronoun():
         tm("quis", "PRON", {"Case": "Nom", "Gender": "Masc", "Number": "Sing"})
     )
     assert form.analytic_type == "pronoun"
+    assert isinstance(form, MorphologicalForm)
 
 
 def test_det_maps_to_pronoun():
@@ -58,6 +91,34 @@ def test_det_maps_to_pronoun():
         tm("hic", "DET", {"Case": "Nom", "Gender": "Masc", "Number": "Sing"})
     )
     assert form.analytic_type == "pronoun"
+    assert isinstance(form, MorphologicalForm)
+
+
+# ---------------------------------------------------------------------------
+# Pronoun without Gender: personal pronouns (ego, tu, nos, vos) don't
+# inflect for gender at all, so LatinCy never tags Gender on them --
+# genuinely missing data, not a tagging gap. UngenderedPronoun carries
+# case/number only, same pattern as AbbreviatedAdjective for Degree.
+# ---------------------------------------------------------------------------
+
+
+def test_pronoun_without_gender_is_ungendered():
+    result = build_morphological_form(tm("ego", "PRON", {"Case": "Nom", "Number": "Sing"}))
+    assert isinstance(result, UngenderedPronoun)
+    assert result == UngenderedPronoun(case="nominative", number="singular")
+    assert not hasattr(result, "gender")
+
+
+def test_det_without_gender_is_also_ungendered():
+    # DET shares PRON's dispatch, so the same fallback applies to it.
+    result = build_morphological_form(tm("suus", "DET", {"Case": "Acc", "Number": "Plur"}))
+    assert isinstance(result, UngenderedPronoun)
+    assert result == UngenderedPronoun(case="accusative", number="plural")
+
+
+def test_ungendered_pronoun_still_requires_case_and_number():
+    with pytest.raises(UnmappableTokenError, match="Number"):
+        build_morphological_form(tm("ego", "PRON", {"Case": "Nom"}))
 
 
 # ---------------------------------------------------------------------------
@@ -427,8 +488,10 @@ def test_unclassified_uninflected_keeps_raw_feats():
 
 
 def test_missing_required_feature_raises():
-    with pytest.raises(UnmappableTokenError, match="Gender"):
-        build_morphological_form(tm("caelum", "NOUN", {"Case": "Acc", "Number": "Sing"}))
+    # Case (unlike Gender, since UngenderedNoun) is still unconditionally
+    # required for a noun.
+    with pytest.raises(UnmappableTokenError, match="Case"):
+        build_morphological_form(tm("caelum", "NOUN", {"Gender": "Neut", "Number": "Sing"}))
 
 
 def test_locative_case_is_unmappable():

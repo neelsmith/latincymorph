@@ -44,6 +44,28 @@ a bare adverb has nothing else to keep:
   adjectives there's no local companion type for adverbs; they simply
   never attempt the `adverb` analytic type at all.
 
+**A third required property LatinCy doesn't tag for one whole class of
+word**: personal pronouns (*ego*, *tu*, *nos*, *vos*) have no `Gender` at
+all -- not a tagging gap so much as a genuine fact about Latin, since
+personal pronouns don't inflect for gender the way demonstratives,
+relatives, and interrogatives do. tabulaedspy's schema still requires
+`gender` for every `analytic_type="pronoun"`, though, so a `PRON`/`DET`
+token missing `Gender` becomes :class:`UngenderedPronoun` (case/number
+only, same pattern as :class:`AbbreviatedAdjective`) rather than a real
+``tabulaedspy.MorphologicalForm``. A pronoun token that *does* carry
+`Gender` still gets a genuine one.
+
+**A fourth case, back to being a genuine tagging gap rather than an
+absence**: LatinCy also doesn't reliably tag `Gender` on `NOUN`/`PROPN`
+tokens, proper nouns especially -- unlike personal pronouns, every Latin
+noun (common or proper) really does have a gender, so this is LatinCy
+failing to supply it, the same kind of gap as `AbbreviatedAdjective`'s
+`Degree`, not `UngenderedPronoun`'s genuine absence. tabulaedspy's schema
+still requires `gender` for every `analytic_type="noun"`, though, so a
+`NOUN`/`PROPN` token missing `Gender` becomes :class:`UngenderedNoun`
+(case/number only) rather than a real ``tabulaedspy.MorphologicalForm``.
+A noun token that *does* carry `Gender` still gets a genuine one.
+
 **The `uninflected` catch-all.** stringmappings.qmd's own uninflected_type
 table only covers `CCONJ`, `ADP`, `ADV`, `NUM`, `INTJ`, `PART`, and `X`
 (the last one, per the document's own caveat, is a probable mixed bag of
@@ -144,6 +166,51 @@ class AbbreviatedAdjective(BaseModel):
     number: NumberValue
 
 
+class UngenderedNoun(BaseModel):
+    """A noun's case/number, without a `gender` -- for a NOUN/PROPN token
+    whose morphology has none. Closer to the `AbbreviatedAdjective` gap
+    than the `UngenderedPronoun` one: common and proper nouns alike have
+    a real grammatical gender in Latin (*Roma* is feminine, *Caesar* is
+    masculine, just as *bonus* is masculine/feminine/neuter by
+    inflection), so this isn't a case of the word genuinely lacking
+    gender -- it's LatinCy failing to tag `Gender` on some noun tokens,
+    proper nouns especially, the same way it fails to tag `Degree` on
+    adjectives. tabulaedspy's own `MorphologicalForm` requires `gender`
+    for `analytic_type="noun"` regardless, so a token like this cannot
+    become a real one; this type exists so its case/number aren't
+    discarded and no gender value is invented. See
+    :func:`build_morphological_form`, which still returns a genuine
+    `MorphologicalForm` when `Gender` *is* present.
+    """
+
+    analytic_type: Literal["noun"] = "noun"
+    case: CaseValue
+    number: NumberValue
+
+
+class UngenderedPronoun(BaseModel):
+    """A pronoun's case/number, without a `gender` -- for a PRON/DET token
+    whose morphology has none. Unlike the `AbbreviatedAdjective` gap
+    (LatinCy fails to tag `Degree` on essentially every adjective, per
+    stringmappings.qmd's own note), this one is narrower and more
+    specific to a class of word: LatinCy doesn't tag `Gender` on personal
+    pronouns (*ego*, *tu*, *nos*, *vos*) at all, because Latin personal
+    pronouns genuinely don't inflect for gender -- there's no value to
+    find, not a value LatinCy failed to supply. tabulaedspy's own
+    `MorphologicalForm` requires `gender` for `analytic_type="pronoun"`
+    regardless, so a token like this cannot become a real one; this type
+    exists so its case/number aren't discarded and no gender value is
+    invented. See :func:`build_morphological_form`, which still returns a
+    genuine `MorphologicalForm` when `Gender` *is* present -- demonstrative,
+    relative, interrogative, and other pronouns that decline by gender the
+    same way adjectives do.
+    """
+
+    analytic_type: Literal["pronoun"] = "pronoun"
+    case: CaseValue
+    number: NumberValue
+
+
 class UnclassifiedUninflected(BaseModel):
     """A token that isn't one of the analytic types this module can
     confidently identify (noun/pronoun/adjective/a verb-family type), and
@@ -167,7 +234,7 @@ class UnclassifiedUninflected(BaseModel):
 #: mapping failure: either a genuine tabulaedspy object, or one of the two
 #: local companion types above for what tabulaedspy's schema can't
 #: represent from what LatinCy actually tags.
-StageThreeResult = Union[MorphologicalForm, AbbreviatedAdjective, UnclassifiedUninflected]
+StageThreeResult = Union[MorphologicalForm, AbbreviatedAdjective, UngenderedNoun, UngenderedPronoun, UnclassifiedUninflected]
 
 
 class UnmappableTokenError(ValueError):
@@ -395,6 +462,40 @@ def _build_adjective(token: TokenMorphology) -> Union[MorphologicalForm, Abbrevi
         ) from exc
 
 
+def _build_noun(token: TokenMorphology) -> Union[MorphologicalForm, UngenderedNoun]:
+    case = _lookup(_CASE, token.feats.get("Case"), token, "Case")
+    number = _lookup(_NUMBER, token.feats.get("Number"), token, "Number")
+    raw_gender = token.feats.get("Gender")
+    if raw_gender is None:
+        # LatinCy fails to tag Gender on some noun tokens (proper nouns
+        # especially) -- see UngenderedNoun's own docstring.
+        return UngenderedNoun(case=case, number=number)
+    gender = _lookup(_GENDER, raw_gender, token, "Gender")
+    try:
+        return MorphologicalForm(analytic_type="noun", gender=gender, case=case, number=number)
+    except ValidationError as exc:
+        raise UnmappableTokenError(
+            token, f"tabulaedspy rejected mapped properties for 'noun': {exc}"
+        ) from exc
+
+
+def _build_pronoun(token: TokenMorphology) -> Union[MorphologicalForm, UngenderedPronoun]:
+    case = _lookup(_CASE, token.feats.get("Case"), token, "Case")
+    number = _lookup(_NUMBER, token.feats.get("Number"), token, "Number")
+    raw_gender = token.feats.get("Gender")
+    if raw_gender is None:
+        # Personal pronouns don't inflect for gender at all -- see
+        # UngenderedPronoun's own docstring.
+        return UngenderedPronoun(case=case, number=number)
+    gender = _lookup(_GENDER, raw_gender, token, "Gender")
+    try:
+        return MorphologicalForm(analytic_type="pronoun", gender=gender, case=case, number=number)
+    except ValidationError as exc:
+        raise UnmappableTokenError(
+            token, f"tabulaedspy rejected mapped properties for 'pronoun': {exc}"
+        ) from exc
+
+
 def _build_uninflected_or_unknown(token: TokenMorphology) -> Union[MorphologicalForm, UnclassifiedUninflected]:
     uninflected_type = _UNINFLECTED_TYPE_BY_UPOS.get(token.upos)
     if uninflected_type is not None:
@@ -433,20 +534,27 @@ def build_morphological_form(token: TokenMorphology) -> StageThreeResult:
        the module docstring; this preempts stringmappings.qmd's own
        ``ADV -> adverb`` row, which would require a `degree` LatinCy
        doesn't supply).
-    4. ``token.pos_`` is ``NOUN`` or ``PROPN`` -> ``noun`` --
-       stringmappings.qmd's own "Analytic type" table lists both UPOS
-       values directly (`NOUN` or `PROPN` -> `noun`). This was originally
-       this module's own inference; Neel has since confirmed it by adding
-       `PROPN` to the reference document itself, so it's no longer a
-       judgment call this module is making on its own.
-    5. ``token.pos_`` is ``PRON`` or ``DET`` -> ``pronoun``. **Note:**
-       stringmappings.qmd's table still names only `PRON`; `DET` remains
-       this module's own inference (Latin UD `DET` tokens --
-       demonstratives, possessives -- are pronominal adjectives in the
-       traditional grammar tabulaedspy's scheme follows, and have the
-       same gender/case/number property set as `PRON` either way) -- flag
-       this to Neel the same way `PROPN` was, if that's not the intended
-       reading.
+    4. ``token.pos_`` is ``NOUN`` or ``PROPN`` -> :func:`_build_noun` (a
+       genuine `noun` `MorphologicalForm` if `Gender` is present,
+       otherwise :class:`UngenderedNoun` -- LatinCy often fails to tag
+       `Gender` on proper nouns in particular, even though every Latin
+       noun genuinely has one). stringmappings.qmd's own "Analytic type"
+       table lists both UPOS values directly (`NOUN` or `PROPN` ->
+       `noun`). That mapping was originally this module's own inference;
+       Neel has since confirmed it by adding `PROPN` to the reference
+       document itself, so it's no longer a judgment call this module is
+       making on its own.
+    5. ``token.pos_`` is ``PRON`` or ``DET`` -> :func:`_build_pronoun` (a
+       genuine `pronoun` `MorphologicalForm` if `Gender` is present,
+       otherwise :class:`UngenderedPronoun` -- personal pronouns don't
+       inflect for gender at all, so this is the common case for them, not
+       a rare fallback). **Note:** stringmappings.qmd's table still names
+       only `PRON`; `DET` remains this module's own inference (Latin UD
+       `DET` tokens -- demonstratives, possessives -- are pronominal
+       adjectives in the traditional grammar tabulaedspy's scheme follows,
+       and have the same gender/case/number property set as `PRON` either
+       way) -- flag this to Neel the same way `PROPN` was, if that's not
+       the intended reading.
     6. ``token.pos_ == "ADJ"`` -> :func:`_build_adjective` (a genuine
        `adjective` `MorphologicalForm` if `Degree` is present, otherwise
        :class:`AbbreviatedAdjective`).
@@ -476,20 +584,10 @@ def build_morphological_form(token: TokenMorphology) -> StageThreeResult:
         return MorphologicalForm(analytic_type="uninflected", uninflected_type="adverb")
 
     if token.upos in ("NOUN", "PROPN"):
-        try:
-            return MorphologicalForm(analytic_type="noun", **_nominal_properties(token))
-        except ValidationError as exc:
-            raise UnmappableTokenError(
-                token, f"tabulaedspy rejected mapped properties for 'noun': {exc}"
-            ) from exc
+        return _build_noun(token)
 
     if token.upos in ("PRON", "DET"):
-        try:
-            return MorphologicalForm(analytic_type="pronoun", **_nominal_properties(token))
-        except ValidationError as exc:
-            raise UnmappableTokenError(
-                token, f"tabulaedspy rejected mapped properties for 'pronoun': {exc}"
-            ) from exc
+        return _build_pronoun(token)
 
     if token.upos == "ADJ":
         return _build_adjective(token)
@@ -518,7 +616,8 @@ class MorphologicalFormResult:
     def native(self) -> bool:
         """Whether ``.result`` is a genuine ``tabulaedspy.MorphologicalForm``
         rather than one of this module's own companion types
-        (:class:`AbbreviatedAdjective`, :class:`UnclassifiedUninflected`).
+        (:class:`AbbreviatedAdjective`, :class:`UngenderedNoun`,
+        :class:`UngenderedPronoun`, :class:`UnclassifiedUninflected`).
         ``False`` for a failed mapping too (``.result`` is ``None``)."""
         return isinstance(self.result, MorphologicalForm)
 
