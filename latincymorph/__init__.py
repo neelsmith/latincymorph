@@ -9,8 +9,13 @@ Three stages (full design in ``notes/pipeline-overview.md``):
 2. ``extraction.extract_sentences()`` -- walk the resulting ``Doc``
    sentence by sentence and pull out each analyzable token's morphology.
 3. ``tabulaedspy_bridge.build_morphological_form()`` -- map that
-   morphology onto tabulaedspy's scheme and instantiate a
-   ``MorphologicalForm``.
+   morphology onto tabulaedspy's scheme and instantiate the result. Most
+   tokens become a genuine ``tabulaedspy.MorphologicalForm``; some become
+   one of two local companion types (``AbbreviatedAdjective``,
+   ``UnclassifiedUninflected``) for cases tabulaedspy's schema can't
+   represent from what LatinCy actually tags -- see
+   ``tabulaedspy_bridge``'s own docstring and
+   ``notes/spacy-to-tabulaedspy-mapping.md``.
 
 Stages 1-2 need only spaCy/LatinCy installed. Stage 3 additionally needs
 tabulaedspy (and, transitively, dspy and arsgrammatica) -- install
@@ -26,7 +31,10 @@ from typing import List, Optional
 from .extraction import TokenMorphology, extract_sentences, is_analyzable, iter_tokens
 from .pipeline import DEFAULT_MODEL, analyze_text, load_model
 from .tabulaedspy_bridge import (
+    AbbreviatedAdjective,
     MorphologicalFormResult,
+    StageThreeResult,
+    UnclassifiedUninflected,
     UnmappableTokenError,
     build_morphological_form,
     build_morphological_forms,
@@ -36,6 +44,9 @@ __all__ = [
     "DEFAULT_MODEL",
     "TokenMorphology",
     "MorphologicalFormResult",
+    "StageThreeResult",
+    "AbbreviatedAdjective",
+    "UnclassifiedUninflected",
     "UnmappableTokenError",
     "analyze_text",
     "load_model",

@@ -7,7 +7,12 @@ and parse the text into a Doc.
 Stage 2 (latincymorph.extraction.extract_sentences): walk the Doc sentence
 by sentence, pulling each analyzable token's lemma/UPOS/UD morphology.
 Stage 3 (latincymorph.tabulaedspy_bridge.build_morphological_forms): map
-each token's morphology onto tabulaedspy's MorphologicalForm schema.
+each token's morphology onto tabulaedspy's scheme, per
+quarto/reference/stringmappings.qmd. Most tokens come back as a genuine
+tabulaedspy.MorphologicalForm; some come back as one of latincymorph's own
+companion types (AbbreviatedAdjective, UnclassifiedUninflected) for cases
+tabulaedspy's schema can't represent from what LatinCy actually tags -- see
+latincymorph/tabulaedspy_bridge.py's module docstring.
 
 Usage:
     python3 utilities/analyze_text.py "Gallia est omnis divisa in partes tres."
@@ -27,11 +32,14 @@ import sys
 
 from latincymorph import (
     DEFAULT_MODEL,
+    AbbreviatedAdjective,
     MorphologicalFormResult,
+    UnclassifiedUninflected,
     analyze_text,
     build_morphological_forms,
     extract_sentences,
 )
+from tabulaedspy import MorphologicalForm
 
 # Every optional MorphologicalForm property, in the order rendering.py's
 # own label_morphology() uses them upstream in tabulaedspy -- kept here
@@ -89,17 +97,31 @@ def format_feats(feats: dict) -> str:
     return "|".join(f"{key}={value}" for key, value in feats.items()) if feats else "-"
 
 
-def format_form(result: MorphologicalFormResult) -> str:
+def format_result(result: MorphologicalFormResult) -> str:
     if not result.ok:
         return f"UNMAPPED ({result.error.reason})"
-    form = result.form
-    parts = [f"analytic_type={form.analytic_type}"]
-    parts.extend(
-        f"{field}={value}"
-        for field in _FORM_FIELDS
-        if (value := getattr(form, field)) is not None
-    )
-    return " ".join(parts)
+
+    outcome = result.result
+
+    if isinstance(outcome, MorphologicalForm):
+        parts = [f"analytic_type={outcome.analytic_type}"]
+        parts.extend(
+            f"{field}={value}"
+            for field in _FORM_FIELDS
+            if (value := getattr(outcome, field)) is not None
+        )
+        return " ".join(parts)
+
+    if isinstance(outcome, AbbreviatedAdjective):
+        return (
+            f"analytic_type=adjective gender={outcome.gender} case={outcome.case} "
+            f"number={outcome.number} [degree MISSING -- LatinCy doesn't tag it]"
+        )
+
+    if isinstance(outcome, UnclassifiedUninflected):
+        return f"analytic_type=uninflected uninflected_type=unknown [UPOS {outcome.upos!r} not in stringmappings.qmd]"
+
+    raise AssertionError(f"unhandled stage-3 outcome type: {type(outcome)!r}")  # pragma: no cover
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -128,24 +150,35 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\nInput: {text}")
     print(f"{total_tokens} analyzable token(s) across {len(sentences)} sentence(s)\n")
 
-    mapped_count = 0
+    native_count = 0
+    fallback_count = 0
+    error_count = 0
     for sent_index, sentence in enumerate(sentences):
         print(f"--- Sentence {sent_index} ---")
         results = build_morphological_forms(sentence)
 
-        header = f"{'text':<15} {'lemma':<15} {'UPOS':<6} {'spaCy morphology':<40} tabulaedspy MorphologicalForm"
+        header = f"{'text':<15} {'lemma':<15} {'UPOS':<6} {'spaCy morphology':<40} tabulaedspy result"
         print(header)
         print("-" * len(header))
         for result in results:
             token = result.token
-            mapped_count += result.ok
+            if not result.ok:
+                error_count += 1
+            elif result.native:
+                native_count += 1
+            else:
+                fallback_count += 1
             print(
                 f"{token.text:<15} {token.lemma:<15} {token.upos:<6} "
-                f"{format_feats(token.feats):<40} {format_form(result)}"
+                f"{format_feats(token.feats):<40} {format_result(result)}"
             )
         print()
 
-    print(f"Summary: {mapped_count}/{total_tokens} token(s) mapped to a tabulaedspy MorphologicalForm.")
+    print(
+        f"Summary: {native_count} mapped to a genuine tabulaedspy MorphologicalForm, "
+        f"{fallback_count} to a latincymorph companion type (AbbreviatedAdjective / "
+        f"UnclassifiedUninflected), {error_count} unmapped, out of {total_tokens} token(s)."
+    )
     return 0
 
 

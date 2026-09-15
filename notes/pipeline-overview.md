@@ -23,12 +23,24 @@ and stage 3:
    objects so it's cheap to inspect, log, or serialize. **This module
    imports only `spacy`.**
 3. **`latincymorph.tabulaedspy_bridge`** -- map one `TokenMorphology`'s UD
-   features onto tabulaedspy's `MorphologicalForm` schema and instantiate
-   it (`build_morphological_form()`), or map a whole sentence at once,
-   collecting successes and failures rather than raising on the first bad
-   token (`build_morphological_forms()`). **This is the only module that
-   imports tabulaedspy**, and therefore the only one that pulls in
-   tabulaedspy's own dependencies (`dspy`, `arsgrammatica`).
+   features onto tabulaedspy's scheme, per `quarto/reference/stringmappings.qmd`
+   (Neel's own hand-maintained reference at the repository root -- the
+   authoritative source for this stage; see
+   `spacy-to-tabulaedspy-mapping.md` for how the code follows it).
+   `build_morphological_form()` returns a genuine
+   `tabulaedspy.MorphologicalForm` for most tokens, but two local
+   companion types stand in when tabulaedspy's schema demands a property
+   LatinCy doesn't tag: `AbbreviatedAdjective` (an adjective's
+   gender/case/number without the `degree` tabulaedspy requires but
+   LatinCy doesn't supply) and `UnclassifiedUninflected` (a token that
+   isn't confidently any of the 11 analytic types, carrying its raw UPOS
+   and features instead of a guess). `MorphologicalFormResult.native`
+   tells a caller which kind it got. `build_morphological_forms()` maps a
+   whole sentence at once, collecting per-token results (including
+   genuine failures, in `.error`) rather than raising on the first bad
+   token. **This is the only module that imports tabulaedspy**, and
+   therefore the only one that pulls in tabulaedspy's own dependencies
+   (`dspy`, `arsgrammatica`).
 
 `latincymorph.analyze_document(text)` chains all three for convenience.
 Import `latincymorph.extraction` directly (not the top-level package) if
@@ -36,18 +48,22 @@ you want stages 1-2 without tabulaedspy/dspy/arsgrammatica installed at
 all -- e.g. for exploratory tagging work that has nothing to do with
 tabulaedspy's own scheme.
 
-Install the `tabulaedspy` extra (`pip install -e ".[tabulaedspy]"`) to pull
+Install the `tabulaedspy` extra (`pip install -e ".[tabulaedspy]")` to pull
 in stage 3's dependencies; plain `pip install -e .` gets you stages 1-2
 only.
 
-## Why stage 3 only builds a `MorphologicalForm`, not a full analysis
+## Why stage 3 only targets `MorphologicalForm`, not a full analysis
 
 tabulaedspy's own scheme (`morphology_scheme.md` in that repository) pairs
 four things with a syntactically-analyzed token: a *lemma*, a *normalized
 form*, a *named entity* structure, and a *morphological form*. Its own
 `MorphologicalAnalysis`/`MorphologicallyAnalyzedToken` models bundle all
 four together with an `arsgrammatica.TokenAnalysis` (tabulaedspy's syntactic
-input, produced by a different tool entirely).
+input, produced by a different tool entirely). (The two local companion
+types stage 3 sometimes produces instead -- see above -- are latincymorph's
+own, not part of tabulaedspy's scheme at all; they exist only because
+tabulaedspy's `MorphologicalForm` itself can't represent a token missing a
+property it requires.)
 
 latincymorph only has spaCy's output to work with, and spaCy's tagger
 doesn't produce a named-entity *grouping* in tabulaedspy's sense (which of

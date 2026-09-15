@@ -9,10 +9,11 @@ title: Mapping of spaCy string values to `tabulaedspy` objects
 
 | spAcy token tags | analytic type in `tabulaedspy` |
 | --- | --- |
-| `token.pos_` is `NOUN` | `noun` |
+| `token.pos_` is `NOUN` or `PROPN` | `noun` |
 | `token.pos_` is `PRON` | `pronoun` |
 | `token.pos_` is  `ADJ` | `adjective` |
 | `token.pos_` is  `ADV` | `adverb` |
+| `token.pos_` is  `AUX` | `finite verb` |
 |`token.morph` includes  `VerbForm=Fin` | `finite verb` |
 | `token.morph` includes `VerbForm=Inf` | `infinitive` |
 | `token.morph` includes  `VerbForm=Part` | `participle` |
@@ -88,12 +89,19 @@ latincy does not appear to tag degree of adjectives and adverbs.
 
 ### Tense
 
+ 
+
 | spaCy `token.morph` includes |  value |
 | --- | --- | 
-| `Tense=Pres` | `present` |
+| for finite verbs, `Tense=Pres` | `present` |
+| for participles, `Aspect=Imp` | `present` |
+| for infinitives, `Aspect=Imp` | `present` |
 |`Aspect=Imp` and  `Tense=Past` |  `imperfect` |
-| `Aspect=Imp` and `Tense=Fut`|  `future` |
-|`Aspect=Perf` and  `Tense=Past`|  `perfect` |
+| for finite verbs, `Aspect=Imp` and `Tense=Fut`|  `future` |
+| for participles, `Aspect=Prosp` | `future` |
+| for finite verbs, `Aspect=Perf` and  `Tense=Past`|  `perfect` |
+| for participles,  `Aspect=Perf` |  `perfect`|
+| for infinitives,  `Aspect=Perf` |  `perfect`|
 |`Tense=Pqp` | `pluperfect` |
 |`Aspect=Perf` and `Tense=Fut`| `future_perfect` |
 
@@ -112,6 +120,8 @@ latincy does not appear to tag degree of adjectives and adverbs.
 
 
 ### Voice
+
+If `token.pos_` is `AUX`, voice is `active`. Otherwise:
 
 | spaCy `token.morph` includes |  value |
 | --- | --- | 
