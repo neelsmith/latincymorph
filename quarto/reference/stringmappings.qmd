@@ -1,0 +1,90 @@
+---
+title: Mapping of spaCy string values to `tabulaedspy` objects
+---
+
+
+## Analytic type
+
+`tabulaedspy` defines 11 analytic types. Use this table to determine the correct analytic type to apply for a given spaCy `token`.
+
+| spAcy token tags | analytic type in `tabulaedspy` |
+| --- | --- |
+| `token.pos_` is `NOUN` | `noun` |
+| `token.pos_` is `PRON` | `pronoun` |
+| `token.pos_` is  `ADJ` | `adjective` |
+| `token.pos_` is  `ADV` | `adverb` |
+|`token.morph` includes  `VerbForm=Fin` | `finite verb` |
+| `token.morph` includes `VerbForm=Inf` | `infinitive` |
+| `token.morph` includes  `VerbForm=Part` | `participle` |
+|  `token.morph` includes  `VerbForm=Sup` | `supine` |
+|  `token.morph` includes   `VerbForm=Ger` | `gerund` |
+|  `token.morph` includes  `VerbForm=Gdv` | `gerundive` |
+| `token.morph`  is empty | `uninflected` |
+
+
+
+## Properties by type
+
+Use this table to determine the morphological properties required for each analytic type:
+
+| Analytic type | Properties |
+| ---  | --- | 
+|  "noun" | "gender", "case", "number" |
+|   "pronoun" | "gender", "case", "number" |
+| "adjective" | "gender", "case", "number", "degree " |
+| "adverb" | "degree" |
+|    "finite verb" | "tense", "mood", "voice", "person", "number " |
+| "infinitive" | "tense", "voice " |
+| "participle" | "tense", "voice", "gender", "case", "number " |
+|  "supine" | "case" |
+|    "gerund" | "case" |
+| "gerundive" | "gender", "case", "number " |
+|  "uninflected" | "uninflected_type" |
+
+
+
+## Values for morphological properties
+
+Use these tables to determine the value for each morphological property required for each analytic type:
+
+
+
+### Gender
+
+| spaCy `token.morph` includes |  value |
+| --- | --- | 
+| `Gender=Masc` | `masculine` |
+| `Gender=Fem` | `feminine` |
+| `Gender=Neut` | `neuter` |
+
+### Case
+
+Case = Literal["nominative", "genitive", "dative", "accusative", "ablative", "vocative"]
+
+### Number
+Number = Literal["singular", "plural"]
+
+
+### Degree
+
+Degree = Literal["positive", "comparative", "superlative"]
+
+### Tense
+Tense = Literal["present", "imperfect", "future", "perfect", "pluperfect", "future_perfect"]
+
+### Mood
+
+Mood = Literal["indicative", "subjunctive", "imperative"]
+
+
+### Voice
+Voice = Literal["active", "passive"]
+
+### Person
+Person = Literal["first", "second", "third"]
+
+### Uninflected type
+UninflectedType = Literal[
+    "conjunction", "preposition", "adverb", "number", "interjection", "particle", "foreign"
+]
+
